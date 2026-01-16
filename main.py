@@ -8,23 +8,20 @@ import json
 app = Flask(__name__)
 
 # SABİT ŞİFRELER
-PANEL_PASSWORD = "lord2026freepanel"
-ADMIN_PASSWORD = "lordatar6367"
+USER_PASSWORD = "2026lordvipfree"
+ADMIN_PASSWORD = "@lorddestekhatvip"
 
-# ❗ Render PORT
 PORT = int(os.environ.get("PORT", 5000))
-
 DATA_FILE = "apis.json"
 
 DEFAULT_APIS = {
     "adrespro": "https://sorgum.2026tr.xyz/nabi/api/v1/tc/adres?tc={v}",
     "adsoyadpro": "https://sorgum.2026tr.xyz/nabi/api/v1/adsoyad?ad={a}&soyad={s}&q={q}",
     "ailepro": "https://sorgum.2026tr.xyz/nabi/api/v1/aile?tc={v}",
-    "gsmpro": "https://sorgum.2026tr.xyz/nabi/api/v1/gsm?q={v}",
-    "babapro": "https://sorgum.2026tr.xyz/nabi/api/v1/baba?tc={v}",
-    "annepro": "https://sorgum.2026tr.xyz/nabi/api/v1/anne?tc={v}",
-    "tcpro": "https://sorgum.2026tr.xyz/nabi/api/v1/tcpro?tc={v}"
+    "gsmpro": "https://sorgum.2026tr.xyz/nabi/api/v1/gsm?q={v}"
 }
+
+# ------------------ API KAYIT ------------------
 
 def load_apis():
     if not os.path.exists(DATA_FILE):
@@ -40,40 +37,40 @@ def load_apis():
 
     return data
 
-def save_apis(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
 def call_api(url):
     r = requests.get(url, timeout=20)
     try:
         j = r.json()
     except Exception:
         return {"raw": r.text}
+    return j.get("veri", j)
 
-    if isinstance(j, dict) and "veri" in j:
-        return j["veri"]
-    return j
+# ------------------ LOGIN ------------------
 
-@app.post("/login")
-def login():
-    if request.json and request.json.get("password") == PANEL_PASSWORD:
+@app.route("/login", methods=["POST"])
+def user_login():
+    data = request.get_json(force=True)
+    if data.get("password") == USER_PASSWORD:
         return {"ok": True}
     return {"ok": False}, 401
 
-@app.post("/admin/login")
+
+@app.route("/admin/login", methods=["POST"])
 def admin_login():
-    if request.json and request.json.get("password") == ADMIN_PASSWORD:
+    data = request.get_json(force=True)
+    if data.get("password") == ADMIN_PASSWORD:
         return {"ok": True}
     return {"ok": False}, 401
 
-@app.post("/api/<name>")
+# ------------------ API PROXY ------------------
+
+@app.route("/api/<name>", methods=["POST"])
 def api_proxy(name):
     apis = load_apis()
     if name not in apis:
         return {"error": "Geçersiz API"}, 404
 
-    body = request.json or {}
+    body = request.get_json(force=True)
     url = apis[name].format(
         v=body.get("value", ""),
         a=body.get("ad", ""),
@@ -82,28 +79,12 @@ def api_proxy(name):
     )
     return jsonify(call_api(url))
 
-@app.get("/admin/apis")
-def admin_apis():
-    return load_apis()
+# ------------------ UI ------------------
 
-@app.post("/admin/add")
-def admin_add():
-    body = request.json or {}
-    name = body.get("name", "").lower().strip()
-    url = body.get("url", "").strip()
-
-    if not name or not url:
-        return {"error": "Eksik"}, 400
-
-    data = load_apis()
-    data[name] = url
-    save_apis(data)
-    return {"ok": True}
-
-@app.get("/")
+@app.route("/")
 def index():
     apis = load_apis()
-    return render_template_string(""" 
+    return render_template_string("""
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -120,10 +101,16 @@ pre{white-space:pre-wrap}
 </head>
 <body>
 
-<div class="box" id="login">
+<div class="box" id="loginBox">
 <h3>Kullanıcı Giriş</h3>
-<input id="pass" type="password">
-<button onclick="login()">Giriş</button>
+<input id="userpass" type="password" placeholder="Kullanıcı Şifresi">
+<button onclick="userLogin()">Giriş</button>
+</div>
+
+<div class="box" id="adminBox">
+<h3>Admin Giriş</h3>
+<input id="adminpass" type="password" placeholder="Admin Şifresi">
+<button onclick="adminLogin()">Admin Giriş</button>
 </div>
 
 <div class="box" id="app" style="display:none">
@@ -135,26 +122,50 @@ pre{white-space:pre-wrap}
 </div>
 
 <script>
-function login(){
+function userLogin(){
 fetch('/login',{
-method:'POST',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify({password:pass.value})
-}).then(r=>{
-if(!r.ok) throw 0;
-login.style.display='none';
-app.style.display='block';
-}).catch(()=>alert('Şifre yanlış'));
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({password:document.getElementById('userpass').value})
+})
+.then(r=>r.json())
+.then(d=>{
+  if(d.ok){
+    document.getElementById('loginBox').style.display='none';
+    document.getElementById('adminBox').style.display='none';
+    document.getElementById('app').style.display='block';
+  }else{
+    alert('Kullanıcı şifresi yanlış');
+  }
+});
+}
+
+function adminLogin(){
+fetch('/admin/login',{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({password:document.getElementById('adminpass').value})
+})
+.then(r=>r.json())
+.then(d=>{
+  if(d.ok){
+    alert('Admin girişi başarılı');
+  }else{
+    alert('Admin şifresi yanlış');
+  }
+});
 }
 
 function run(q){
-let v=prompt('Değer');
+let v = prompt("Değer gir");
 fetch('/api/'+q,{
-method:'POST',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify({value:v})
-}).then(r=>r.json()).then(j=>{
-out.textContent=JSON.stringify(j,null,2);
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({value:v})
+})
+.then(r=>r.json())
+.then(j=>{
+  document.getElementById('out').textContent = JSON.stringify(j,null,2);
 });
 }
 </script>
@@ -163,6 +174,7 @@ out.textContent=JSON.stringify(j,null,2);
 </html>
 """, apis=apis)
 
-# ❗ Render için şart
+# ------------------ RUN ------------------
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT)
