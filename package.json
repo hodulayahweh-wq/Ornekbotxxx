@@ -1,7 +1,7 @@
 {
-  "name": "lord-mobile-pro",
-  "version": "4.0.0",
-  "description": "Lord PRO Mobile Unified Edition - High Performance",
+  "name": "lord-pro-ultimate-v5",
+  "version": "5.0.0",
+  "description": "Lord PRO Mobile Unified Edition - Force Mode & Music Fixed",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,7 +9,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "body-parser": "^1.20.2",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^2.6.11"
   },
   "engines": {
     "node": ">=16.0.0"
