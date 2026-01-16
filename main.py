@@ -7,11 +7,13 @@ import json
 
 app = Flask(__name__)
 
-# SABİT ŞİFRELER (DEĞİŞMEZ)
-PANEL_PASSWORD = "lord2026freepanel"
-ADMIN_PASSWORD = "lordatar6367"
+# 🔐 ŞİFRELER (ENV varsa onu alır, yoksa fallback)
+PANEL_PASSWORD = os.environ.get("PANEL_PASSWORD", "lord2026freepanel")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "lordatar6367")
 
-PORT = 5000
+# ❗ Render PORT
+PORT = int(os.environ.get("PORT", 5000))
+
 DATA_FILE = "apis.json"
 
 DEFAULT_APIS = {
@@ -53,19 +55,19 @@ def call_api(url):
         return j["veri"]
     return j
 
-@app.route("/login", methods=["POST"])
+@app.post("/login")
 def login():
     if request.json and request.json.get("password") == PANEL_PASSWORD:
         return {"ok": True}
     return {"ok": False}, 401
 
-@app.route("/admin/login", methods=["POST"])
+@app.post("/admin/login")
 def admin_login():
     if request.json and request.json.get("password") == ADMIN_PASSWORD:
         return {"ok": True}
     return {"ok": False}, 401
 
-@app.route("/api/<name>", methods=["POST"])
+@app.post("/api/<name>")
 def api_proxy(name):
     apis = load_apis()
     if name not in apis:
@@ -80,11 +82,11 @@ def api_proxy(name):
     )
     return jsonify(call_api(url))
 
-@app.route("/admin/apis")
+@app.get("/admin/apis")
 def admin_apis():
     return load_apis()
 
-@app.route("/admin/add", methods=["POST"])
+@app.post("/admin/add")
 def admin_add():
     body = request.json or {}
     name = body.get("name", "").lower().strip()
@@ -98,10 +100,10 @@ def admin_add():
     save_apis(data)
     return {"ok": True}
 
-@app.route("/")
+@app.get("/")
 def index():
     apis = load_apis()
-    return render_template_string("""
+    return render_template_string(""" 
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -161,5 +163,6 @@ out.textContent=JSON.stringify(j,null,2);
 </html>
 """, apis=apis)
 
+# ❗ Render için şart
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=PORT)
