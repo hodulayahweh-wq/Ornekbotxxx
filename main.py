@@ -1,293 +1,421 @@
 # -- coding: utf-8 --
-from flask import Flask,request,jsonify,render_template_string
-import requests,os,json
+from flask import Flask, request, jsonify, render_template_string
+from flask_cors import CORS
+import requests
+import os
+import json
 
-app=Flask(__name__)
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})  # Tüm origin'lere izin (test için) → production'da kısıtla!
 
-# sifreler
-USER_PASSWORD="2026lordvipfree"
-ADMIN_PASSWORD="@lorddestekhatvip"
+# Şifreler (gerçek kullanımda environment variable yap!)
+USER_PASSWORD = "2026lordvipfree"
+ADMIN_PASSWORD = "@lorddestekhatvip"
 
-PORT=int(os.environ.get("PORT",5000))
-DATA_FILE="apis.json"
+PORT = int(os.environ.get("PORT", 5000))
+DATA_FILE = "apis.json"
 
-# default apiler
-apis={
-"adrespro":"https://sorgum.2026tr.xyz/nabi/api/v1/tc/adres?tc={v}",
-"adsoyadpro":"https://sorgum.2026tr.xyz/nabi/api/v1/adsoyad?ad={a}&soyad={s}&q={q}",
-"ailepro":"https://sorgum.2026tr.xyz/nabi/api/v1/aile?tc={v}",
-"gsmpro":"https://sorgum.2026tr.xyz/nabi/api/v1/gsm?q={v}",
-"babapro":"https://sorgum.2026tr.xyz/nabi/api/v1/baba?tc={v}",
-"annepro":"https://sorgum.2026tr.xyz/nabi/api/v1/anne?tc={v}",
-"tcpro":"https://sorgum.2026tr.xyz/nabi/api/v1/tcpro?tc={v}"
+# Varsayılan API'ler
+DEFAULT_APIS = {
+    "adrespro": "https://sorgum.2026tr.xyz/nabi/api/v1/tc/adres?tc={v}",
+    "adsoyadpro": "https://sorgum.2026tr.xyz/nabi/api/v1/adsoyad?ad={a}&soyad={s}&q={q}",
+    "ailepro": "https://sorgum.2026tr.xyz/nabi/api/v1/aile?tc={v}",
+    "gsmpro": "https://sorgum.2026tr.xyz/nabi/api/v1/gsm?q={v}",
+    "babapro": "https://sorgum.2026tr.xyz/nabi/api/v1/baba?tc={v}",
+    "annepro": "https://sorgum.2026tr.xyz/nabi/api/v1/anne?tc={v}",
+    "tcpro": "https://sorgum.2026tr.xyz/nabi/api/v1/tcpro?tc={v}"
 }
 
-def yukle():
+def load_apis():
     if not os.path.exists(DATA_FILE):
-        with open(DATA_FILE,"w",encoding="utf-8") as f:
-            json.dump(apis,f,ensure_ascii=False,indent=2)
-        return apis.copy()
-    with open(DATA_FILE,"r",encoding="utf-8") as f:
-        data=json.load(f)
-    for k in apis:
-        if k not in data:
-            data[k]=apis[k]
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_APIS, f, ensure_ascii=False, indent=2)
+        return DEFAULT_APIS.copy()
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    for k, v in DEFAULT_APIS.items():
+        data.setdefault(k, v)
     return data
 
-def kaydet(d):
-    with open(DATA_FILE,"w",encoding="utf-8") as f:
-        json.dump(d,f,ensure_ascii=False,indent=2)
+def save_apis(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-def api_cagir(url):
+def call_api(url):
     try:
-        r=requests.get(url,timeout=15)
-        try:return r.json().get("veri",r.json())
-        except:return {"hata":r.text}
-    except:
-        return {"hata":"baglanti yok"}
-
-@app.route("/login",methods=["POST"])
-def giris():
-    pw=request.json.get("password")
-    if pw==ADMIN_PASSWORD:return {"ok":1,"admin":1}
-    if pw==USER_PASSWORD:return {"ok":1,"admin":0}
-    return {"ok":0},401
-
-@app.route("/api/<adi>",methods=["POST"])
-def sorgu(adi):
-    apiler=yukle()
-    if adi not in apiler:return {"hata":"yok bu api"},404
-    
-    veri=request.json
-    deger=veri.get("value","")
-    
-    # .txt dosyası varsa satır satır sorgula
-    if deger.endswith(".txt") and os.path.exists(deger):
+        r = requests.get(url, timeout=15)
+        r.raise_for_status()
         try:
-            with open(deger,"r",encoding="utf-8") as f:
-                sonuclar=[]
-                for satir in f:
-                    v=satir.strip()
-                    if not v:continue
-                    url=apiler[adi].format(
-                        v=v,
-                        a=veri.get("ad",""),
-                        s=veri.get("soyad",""),
-                        q=veri.get("q",v)
-                    )
-                    sonuc=api_cagir(url)
-                    sonuclar.append({"deger":v,"sonuc":sonuc})
-                return jsonify({"toplu_sonuc":sonuclar})
+            json_data = r.json()
+            return json_data.get("veri", json_data)
+        except:
+            return {"raw_response": r.text}
+    except Exception as e:
+        return {"error": f"API çağrı hatası: {str(e)}"}
+
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.get_json(silent=True) or {}
+    pw = data.get("password")
+    if pw == ADMIN_PASSWORD:
+        return jsonify({"ok": True, "admin": True})
+    if pw == USER_PASSWORD:
+        return jsonify({"ok": True, "admin": False})
+    return jsonify({"ok": False, "message": "Geçersiz şifre"}), 401
+
+@app.route("/api/<api_name>", methods=["POST"])
+def proxy_api(api_name):
+    apis = load_apis()
+    if api_name not in apis:
+        return jsonify({"error": "Böyle bir sorgu yok"}), 404
+
+    data = request.get_json(silent=True) or {}
+    value = data.get("value", "")
+
+    if value.endswith(".txt") and os.path.exists(value):
+        try:
+            with open(value, "r", encoding="utf-8") as f:
+                results = []
+                for line in f:
+                    v = line.strip()
+                    if not v:
+                        continue
+                    url = apis[api_name].format(v=v, a="", s="", q=v)
+                    results.append({"input": v, "result": call_api(url)})
+            return jsonify({"batch_results": results})
         except Exception as e:
-            return {"hata":f"txt okuma hatasi: {str(e)}"}
-    
-    # normal tek sorgu
-    url=apiler[adi].format(
-        v=deger,
-        a=veri.get("ad",""),
-        s=veri.get("soyad",""),
-        q=veri.get("q",deger)
+            return jsonify({"error": f"TXT okuma hatası: {str(e)}"}), 500
+
+    url = apis[api_name].format(
+        v=value,
+        a=data.get("ad", ""),
+        s=data.get("soyad", ""),
+        q=data.get("q", value)
     )
-    return jsonify(api_cagir(url))
+    return jsonify(call_api(url))
 
-@app.route("/admin/apis")
-def listele():
-    return jsonify(yukle())
+@app.route("/admin/apis", methods=["GET"])
+def admin_list_apis():
+    return jsonify(load_apis())
 
-@app.route("/admin/ekle",methods=["POST"])
-def ekle():
-    d=request.json
-    ad=str(d.get("name","")).lower().strip()
-    url=str(d.get("url","")).strip()
-    if not ad or not url:return {"hata":"eksik bilgi"},400
-    apiler=yukle()
-    apiler[ad]=url
-    kaydet(apiler)
-    return {"tamam":1}
+@app.route("/admin/add", methods=["POST"])
+def admin_add():
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name", "")).strip().lower()
+    url = str(data.get("url", "")).strip()
+    if not name or not url:
+        return jsonify({"error": "Ad ve URL zorunlu"}), 400
+    apis = load_apis()
+    apis[name] = url
+    save_apis(apis)
+    return jsonify({"success": True})
 
-@app.route("/admin/duzenle",methods=["POST"])
-def duzenle():
-    d=request.json
-    ad=str(d.get("name","")).lower().strip()
-    yeni_url=str(d.get("url","")).strip()
-    if not ad or not yeni_url:return {"hata":"eksik"},400
-    apiler=yukle()
-    if ad in apiler:
-        apiler[ad]=yeni_url
-        kaydet(apiler)
-        return {"tamam":1}
-    return {"hata":"bulunamadi"},404
+@app.route("/admin/edit", methods=["POST"])
+def admin_edit():
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name", "")).strip().lower()
+    url = str(data.get("url", "")).strip()
+    if not name or not url:
+        return jsonify({"error": "Ad ve URL zorunlu"}), 400
+    apis = load_apis()
+    if name not in apis:
+        return jsonify({"error": "API bulunamadı"}), 404
+    apis[name] = url
+    save_apis(apis)
+    return jsonify({"success": True})
 
-@app.route("/admin/sil",methods=["POST"])
-def sil():
-    ad=str(request.json.get("name","")).lower().strip()
-    apiler=yukle()
-    if ad in apiler:
-        apiler.pop(ad)
-        kaydet(apiler)
-        return {"tamam":1}
-    return {"hata":"bulunamadi"},404
+@app.route("/admin/delete", methods=["POST"])
+def admin_delete():
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name", "")).strip().lower()
+    apis = load_apis()
+    if name in apis:
+        del apis[name]
+        save_apis(apis)
+        return jsonify({"success": True})
+    return jsonify({"error": "API bulunamadı"}), 404
 
 @app.route("/")
-def ana():
-    apiler=yukle()
-    return render_template_string("""<!DOCTYPE html>
-<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LORD 2026</title>
-<style>
-body{margin:0;padding:0;background:#000;color:#0f0;font-family:monospace;position:relative;overflow:hidden}
-#simulation{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;opacity:0.5}
-#bgtext{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:5em;color:rgba(0,255,0,0.1);z-index:-1;white-space:nowrap}
-button, input{width:100%;margin:6px 0;padding:10px;border:1px solid #0f0;background:#111;color:#0f0}
-pre{color:#0f0;word-break:break-all}
-.hidden{display:none}
-header{position:fixed;top:0;left:0;width:100%;background:#111;padding:10px;display:flex;align-items:center;z-index:10}
-#hamburger{font-size:24px;cursor:pointer;margin-right:10px}
-#title{font-size:20px;display:flex;align-items:center;gap:8px}
-#menu{position:fixed;top:50px;left:0;background:#111;padding:10px;display:none;z-index:10;width:250px}
-#menu a{display:block;color:#0f0;text-decoration:none;margin:5px 0}
-#main-content{margin-top:60px;padding:10px}
-.verified::after{content:"✔";color:#1DA1F2;font-size:1.2em;margin-left:6px}
-a{color:#0f0}
-#sorgu-sayfa{padding:20px;background:#111;border:1px solid #0f0;margin:10px;border-radius:8px}
-</style></head><body>
-<canvas id="simulation"></canvas>
-<div id="bgtext">LORD SORGU</div>
-
-<header>
-<span id="hamburger" onclick="toggleMenu()">☰</span>
-<span id="title">LORD PANEL <span class="verified"></span></span>
-</header>
-
-<div id="menu">
-<a href="https://t.me/lordsystemv3" target="_blank">Telegram Kanalı: @lordsystemv3</a>
-<div id="sorgu-menu"></div>
-<a href="#" onclick="cikis()">ÇIKIŞ YAP</a>
-</div>
-
-<div id="giris" class="main-content">
-<h3>LORD PANEL <span class="verified"></span></h3>
-<input id="sifre" type="password" placeholder="Şifrenizi girin">
-<button onclick="giris()">GİRİŞ YAP</button>
-<a href="https://t.me/lordsystemv3" target="_blank">Telegram Kanalı: @lordsystemv3</a>
-</div>
-
-<div id="ana" class="hidden main-content">
-<h3 class="verified">HOŞGELDİNİZ (GERÇEK DOĞRULANDI)</h3>
-<div id="icerik"></div>
-</div>
-
-<div id="adminpanel" class="hidden main-content">
-<h3>ADMIN PANEL (ULTRA)</h3>
-<h4>Yeni Sorgu Ekle</h4>
-<input id="yeniad" placeholder="api adi (örn: yenipro)">
-<input id="yeniurl" placeholder="url (örn: https://api.com?q={v})">
-<button onclick="ekle()">EKLE</button>
-
-<h4>Sorgu Düzenle</h4>
-<input id="duzenad" placeholder="düzenlenecek api adı">
-<input id="duzenurl" placeholder="yeni url">
-<button onclick="duzenle()">DÜZENLE</button>
-
-<h4>Sorgu Sil</h4>
-<input id="silad" placeholder="silinecek api adı">
-<button onclick="sil()">SİL</button>
-
-<h4>Tüm Sorgular (JSON)</h4>
-<pre id="apiler"></pre>
-</div>
-
-<script>
-let isAdmin=false;
-let loggedIn=false;
-
-function toggleMenu(){
-    let m=document.getElementById('menu');
-    m.style.display=m.style.display==='block'?'none':'block';
-}
-
-function initSimulation(){
-    let c=document.getElementById('simulation');
-    c.width=window.innerWidth;
-    c.height=window.innerHeight;
-    let ctx=c.getContext('2d');
-    let chars='01LORD';
-    let fontSize=10;
-    let columns=c.width/fontSize;
-    let drops=[];
-    for(let x=0;x<columns;x++)drops[x]=1;
-    function draw(){
-        ctx.fillStyle='rgba(0,0,0,0.05)';
-        ctx.fillRect(0,0,c.width,c.height);
-        ctx.fillStyle='#0f0';
-        ctx.font=fontSize+'px monospace';
-        for(let i=0;i<drops.length;i++){
-            let text=chars[Math.floor(Math.random()*chars.length)];
-            ctx.fillText(text,i*fontSize,drops[i]*fontSize);
-            if(drops[i]*fontSize>c.height&&Math.random()>0.975)drops[i]=0;
-            drops[i]++;
-        }
+def index():
+    apis = load_apis()
+    return render_template_string('''<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LORD PANEL 2026</title>
+  <style>
+    :root { --bg: #0a0e17; --text: #00ff41; --accent: #00bfff; --card: #111827; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background: var(--bg); color: var(--text); font-family: 'Courier New', monospace;
+      min-height: 100vh; position: relative; overflow-x: hidden;
     }
-    setInterval(draw,33);
-}
-initSimulation();
-window.addEventListener('resize',()=>{let c=document.getElementById('simulation');c.width=window.innerWidth;c.height=window.innerHeight;});
+    canvas#matrix { position: fixed; inset: 0; z-index: -2; opacity: 0.4; }
+    header {
+      position: fixed; top: 0; left: 0; right: 0; background: rgba(17,24,39,0.85);
+      backdrop-filter: blur(8px); padding: 1rem; display: flex; align-items: center;
+      z-index: 1000; border-bottom: 1px solid #00ff4133;
+    }
+    #menu-btn { font-size: 1.8rem; cursor: pointer; margin-right: 1rem; color: var(--accent); }
+    #brand { font-size: 1.4rem; font-weight: bold; display: flex; align-items: center; gap: 0.5rem; }
+    .verified { color: var(--accent); font-size: 1.1em; }
+    #side-menu {
+      position: fixed; top: 0; left: -280px; width: 280px; height: 100%;
+      background: var(--card); padding: 5rem 1.5rem 1.5rem; transition: left 0.4s ease;
+      z-index: 999; border-right: 1px solid #00ff4133; overflow-y: auto;
+    }
+    #side-menu.open { left: 0; }
+    #side-menu a {
+      display: block; color: var(--text); text-decoration: none; padding: 0.9rem 0;
+      border-bottom: 1px solid #00ff4122; transition: 0.2s;
+    }
+    #side-menu a:hover { color: var(--accent); padding-left: 0.8rem; }
+    main { margin-top: 70px; padding: 1.5rem; }
+    .hidden { display: none !important; }
+    .card {
+      background: var(--card); border: 1px solid #00ff4133; border-radius: 12px;
+      padding: 1.5rem; margin: 1rem 0; box-shadow: 0 4px 20px rgba(0,255,65,0.08);
+    }
+    input, button {
+      width: 100%; padding: 0.9rem; margin: 0.6rem 0; border-radius: 8px; border: 1px solid #00ff4133;
+      background: #0f172a; color: var(--text); font-family: inherit;
+    }
+    button {
+      background: linear-gradient(90deg, #00bfff, #00ff41); color: #000; font-weight: bold;
+      cursor: pointer; transition: 0.3s; border: none;
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,191,255,0.3); }
+    pre { background: #000; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.9rem; }
+    .loading { text-align: center; color: var(--accent); font-style: italic; }
+  </style>
+</head>
+<body>
+  <canvas id="matrix"></canvas>
 
-function yukleSorgular(){
-    fetch('/admin/apis').then(r=>r.json()).then(veri=>{
-        let smenu=document.getElementById('sorgu-menu');
-        smenu.innerHTML='<hr>SORGULAR<hr>';
-        for(let k in veri){
-            let a=document.createElement('a');
-            a.textContent=k;
-            a.href='#';
-            a.onclick=()=>acSorguSayfa(k);
-            smenu.appendChild(a);
+  <header>
+    <div id="menu-btn">☰</div>
+    <div id="brand">LORD PANEL <span class="verified">✔</span></div>
+  </header>
+
+  <div id="side-menu">
+    <a href="https://t.me/lordsystemv3" target="_blank">Telegram: @lordsystemv3</a>
+    <div id="query-list"></div>
+    <hr style="border-color:#00ff4122; margin:1.5rem 0;">
+    <a href="#" onclick="logout(); return false;">Çıkış Yap</a>
+  </div>
+
+  <main>
+    <div id="login-page" class="card">
+      <h2 style="text-align:center; margin-bottom:1.5rem;">LORD PANEL <span class="verified">✔</span></h2>
+      <input id="password" type="password" placeholder="Şifrenizi girin" autocomplete="off"/>
+      <button id="login-btn">GİRİŞ YAP</button>
+      <p style="text-align:center; margin-top:1rem;">
+        <a href="https://t.me/lordsystemv3" target="_blank" style="color:var(--accent);">Telegram Kanalı: @lordsystemv3</a>
+      </p>
+      <p id="login-status" class="loading hidden"></p>
+    </div>
+
+    <div id="main-page" class="hidden">
+      <div class="card">
+        <h2 class="verified">HOŞ GELDİNİZ – DOĞRULANDI</h2>
+        <div id="content-area"></div>
+      </div>
+    </div>
+
+    <div id="admin-page" class="hidden card">
+      <h2>ADMIN KONTROL PANELİ</h2>
+      <h3>Yeni Sorgu Ekle</h3>
+      <input id="new-name" placeholder="Sorgu adı (örn: yenitcpro)"/>
+      <input id="new-url" placeholder="API URL (örn: https://api.com?tc={v})"/>
+      <button onclick="addQuery()">EKLE</button>
+
+      <h3>Düzenle</h3>
+      <input id="edit-name" placeholder="Düzenlenecek sorgu adı"/>
+      <input id="edit-url" placeholder="Yeni URL"/>
+      <button onclick="editQuery()">DÜZENLE</button>
+
+      <h3>Sil</h3>
+      <input id="del-name" placeholder="Silinecek sorgu adı"/>
+      <button onclick="deleteQuery()">SİL</button>
+
+      <h3>Mevcut Sorgular</h3>
+      <pre id="api-list"></pre>
+    </div>
+  </main>
+
+  <script>
+    const menu = document.getElementById("side-menu");
+    const menuBtn = document.getElementById("menu-btn");
+    menuBtn.onclick = () => menu.classList.toggle("open");
+
+    // Matrix efekti
+    const canvas = document.getElementById("matrix");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    });
+
+    const chars = "01LORD✔✪";
+    const fontSize = 14;
+    const columns = canvas.width / fontSize;
+    const drops = Array(Math.floor(columns)).fill(1);
+
+    function drawMatrix() {
+      ctx.fillStyle = "rgba(10,14,23,0.05)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#00ff41";
+      ctx.font = fontSize + "px monospace";
+      drops.forEach((y, i) => {
+        const text = chars[Math.floor(Math.random() * chars.length)];
+        const x = i * fontSize;
+        ctx.fillText(text, x, y * fontSize);
+        if (y * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      });
+    }
+    setInterval(drawMatrix, 40);
+
+    let isAdmin = false;
+    let isLoggedIn = false;
+
+    function loadQueries() {
+      fetch("/admin/apis")
+        .then(r => r.json())
+        .then(apis => {
+          const list = document.getElementById("query-list");
+          list.innerHTML = "<hr>SORGULAR<hr>";
+          Object.keys(apis).forEach(key => {
+            const a = document.createElement("a");
+            a.href = "#";
+            a.textContent = key;
+            a.onclick = () => openQueryPage(key);
+            list.appendChild(a);
+          });
+          document.getElementById("api-list").textContent = JSON.stringify(apis, null, 2);
+        })
+        .catch(err => console.error("Sorgu listesi yüklenemedi:", err));
+    }
+
+    function openQueryPage(name) {
+      menu.classList.remove("open");
+      document.getElementById("content-area").innerHTML = `
+        <div class="card">
+          <h3>${name.toUpperCase()} SORGUSU</h3>
+          <input id="qvalue-${name}" placeholder="Değer veya .txt dosya yolu"/>
+          <small style="color:#aaa;">.txt → satır satır sorgular (örn: /sdcard/list.txt)</small>
+          <button onclick="runQuery('${name}')">SORGULA</button>
+          <pre id="result-${name}" style="margin-top:1rem; min-height:100px;"></pre>
+        </div>`;
+    }
+
+    async function runQuery(name) {
+      const val = document.getElementById(`qvalue-${name}`).value.trim();
+      if (!val) return alert("Değer girin!");
+      const resultEl = document.getElementById(`result-${name}`);
+      resultEl.textContent = "Sorgulanıyor...";
+
+      try {
+        const res = await fetch(`/api/${name}`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({value: val})
+        });
+        if (!res.ok) throw new Error(`Sunucu hatası: ${res.status}`);
+        const data = await res.json();
+        resultEl.textContent = data.batch_results
+          ? "Toplu sonuç:\\n" + JSON.stringify(data.batch_results, null, 2)
+          : JSON.stringify(data, null, 2);
+      } catch (err) {
+        resultEl.textContent = "HATA: " + err.message;
+      }
+    }
+
+    async function login() {
+      const pw = document.getElementById("password").value;
+      const status = document.getElementById("login-status");
+      const btn = document.getElementById("login-btn");
+
+      if (!pw) return alert("Şifre boş olamaz!");
+      status.classList.remove("hidden");
+      status.textContent = "Giriş yapılıyor... (Render cold-start olabilir, 30-60 sn bekleyin)";
+      btn.disabled = true;
+
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({password: pw})
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+
+        if (data.ok) {
+          localStorage.setItem("lord_auth", pw);
+          isLoggedIn = true;
+          isAdmin = data.admin;
+          document.getElementById("login-page").classList.add("hidden");
+          document.getElementById("main-page").classList.remove("hidden");
+          if (isAdmin) document.getElementById("admin-page").classList.remove("hidden");
+          loadQueries();
+        } else {
+          alert(data.message || "Giriş başarısız!");
         }
-        document.getElementById('apiler').textContent=JSON.stringify(veri,null,2);
-    });
-}
+      } catch (err) {
+        alert("Bağlantı hatası: " + err.message + "\\n\\nRender free tier'da ilk istek yavaş olabilir.");
+      } finally {
+        status.classList.add("hidden");
+        btn.disabled = false;
+      }
+    }
 
-function acSorguSayfa(adi){
-    toggleMenu();
-    let icerik=document.getElementById('icerik');
-    icerik.innerHTML=`
-    <div id="sorgu-sayfa">
-    <h3>${adi.toUpperCase()} SORGUSU</h3>
-    <input id="deger-${adi}" placeholder="Değer gir (veya .txt dosya yolu)">
-    <small>Not: .txt dosyası yüklerseniz satır satır sorgulanır (Termux'ta dosya yolu ör: /sdcard/liste.txt)</small>
-    <button onclick="sorgula('${adi}')">SORGULA</button>
-    <pre id="sonuc-${adi}"></pre>
-    </div>`;
-}
+    document.getElementById("login-btn").onclick = login;
+    document.getElementById("password").addEventListener("keyup", e => { if (e.key === "Enter") login(); });
 
-function giris(){
-    let pw=document.getElementById('sifre').value;
-    fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
-    .then(r=>r.json()).then(d=>{
-        if(d.ok){
-            localStorage.setItem('auth',pw);
-            loggedIn=true;
-            isAdmin=d.admin;
-            document.getElementById('giris').classList.add('hidden');
-            document.getElementById('ana').classList.remove('hidden');
-            if(isAdmin)document.getElementById('adminpanel').classList.remove('hidden');
-            yukleSorgular();
-        }else alert('YANLIŞ ŞİFRE!');
-    });
-}
+    function addQuery()    { adminAction("/admin/add",    {name: "new-name", url: "new-url"}); }
+    function editQuery()   { adminAction("/admin/edit",   {name: "edit-name", url: "edit-url"}); }
+    function deleteQuery() { adminAction("/admin/delete", {name: "del-name"}); }
 
-function sorgula(adi){
-    if(!loggedIn)return alert('Giriş yapın');
-    let v=document.getElementById(`deger-${adi}`).value.trim();
-    if(!v)return alert('Değer girin');
-    fetch('/api/'+adi,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:v})})
-    .then(r=>r.json()).then(j=>{
-        let out=document.getElementById(`sonuc-${adi}`);
-        if(j.toplu_sonuc){
-            out.textContent="Toplu sorgu sonuçları:\n"+JSON.stringify(j.toplu_sonuc,null,2);
-        }else{
-            out.textContent=JSON.stringify(j,null,2);
+    async function adminAction(endpoint, fields) {
+      if (!isAdmin) return alert("Admin yetkisi yok!");
+      const body = {};
+      for (const [k, id] of Object.entries(fields)) {
+        body[k] = document.getElementById(id).value.trim();
+        if (k === "name" && !body[k]) return alert("Ad zorunlu!");
+      }
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(await res.text());
+        loadQueries();
+        alert("İşlem başarılı!");
+      } catch (err) {
+        alert("Hata: " + err.message);
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("lord_auth");
+      location.reload();
+    }
+
+    if (localStorage.getItem("lord_auth")) {
+      document.getElementById("password").value = ""; // güvenlik
+      login();  // auto-login denemesi
+    }
+  </script>
+</body>
+</html>''', apis=apis)
+
+if __name__ == "__main__":
+    # Render'da debug=False kullan (production)
+    # app.run(host="0.0.0.0", port=PORT, debug=False)
+    app.run(host="0.0.0.0", port=PORT)ringify(j,null,2);
         }
     }).catch(e=>alert("Hata: "+e));
 }
