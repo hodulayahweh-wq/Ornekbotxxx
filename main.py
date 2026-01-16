@@ -8,7 +8,7 @@ import json
 app = Flask(__name__)
 
 # SABİT ŞİFRELER (DEĞİŞMEZ)
-PANEL_PASSWORD = "lord2025freepanel"
+PANEL_PASSWORD = "lord2026freepanel"
 ADMIN_PASSWORD = "lordatar6367"
 
 PORT = 5000
