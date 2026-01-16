@@ -4,11 +4,14 @@
 
 #Dil Seçimi: TR, EN, DE, FR, ES, AR (kolayca genişletilebilir)
 
-#================================================================
+#===============================================================
+import os
+import time
+import threading
+from datetime import datetime
 
-import os import time import threading from datetime import datetime
-
-import telebot from flask import Flask, request, redirect, url_for, render_template_string, session
+import telebot
+from flask import Flask, request, redirect
 
 #==================== AYARLAR ====================
 
