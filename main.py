@@ -7,9 +7,9 @@ import json
 
 app = Flask(__name__)
 
-# 🔐 ŞİFRELER (ENV varsa onu alır, yoksa fallback)
-PANEL_PASSWORD = os.environ.get("PANEL_PASSWORD", "lord2026freepanel")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "lordatar6367")
+# SABİT ŞİFRELER
+PANEL_PASSWORD = "lord2026freepanel"
+ADMIN_PASSWORD = "lordatar6367"
 
 # ❗ Render PORT
 PORT = int(os.environ.get("PORT", 5000))
