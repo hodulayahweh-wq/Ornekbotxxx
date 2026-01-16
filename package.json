@@ -1,7 +1,7 @@
 {
-  "name": "lord-v6-clean",
-  "version": "6.0.0",
-  "description": "Lord Clean Panel - Ad-Free & Music Fixed",
+  "name": "lord-v6-backend-proxy",
+  "version": "6.5.0",
+  "description": "Lord PRO Backend Proxy - Force Mode & Clean Data",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
