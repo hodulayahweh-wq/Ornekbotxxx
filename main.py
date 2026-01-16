@@ -1,167 +1,79 @@
-# ============================================================
-# LORD ULTRA SEVİYE BOT + WEB PANEL
-# Android (Pydroid 3 / Termux) + Render uyumlu
-# Tek dosya: main.py
-# ============================================================
+import os import json import time import threading from flask import Flask, request, redirect, session, render_template_string import telebot
 
-import os
-import json
-import threading
-from flask import Flask, request, redirect, session, render_template_string
-import telebot
+BOT_TOKEN = os.getenv("BOT_TOKEN") if not BOT_TOKEN: raise RuntimeError("BOT_TOKEN bulunamadi")
 
-# ==================== AYARLAR ====================
-BOT_NAME = "LORD"
-ADMIN_PASSWORD = "316363"
-DATA_FILE = "commands.json"
+ADMIN_PASSWORD = "316363" ADMIN_IDS = [123456789] DATA_FILE = "commands.json" LANG_FILE = "langs.json"
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN bulunamadı")
+bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML") app = Flask(name) app.secret_key = "lord-secret"
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
+DEFAULT_LANGS = { "tr": { "start": "Komutlar", "noauth": "Yetkin yok", "updated": "Guncellendi, /start yaz" }, "en": { "start": "Commands", "noauth": "No permission", "updated": "Updated, type /start" } }
 
-# ==================== KOMUTLAR ====================
-USER_COMMANDS = {
-    "/start": "Botu başlatır",
-    "/help": "Komutları gösterir",
-    "/menu": "Ana menü",
-    "/profil": "Profil",
-    "/dil": "Dil seçimi",
-    "/istatistik": "İstatistik",
-    "/destek": "@LordDestekHat",
-    "/ping": "Bot durumu",
-    "/zaman": "Saat",
-    "/kurallar": "Kurallar",
-    "/duyuru": "Duyurular",
-    "/linkler": "Linkler",
-    "/paketler": "Paketler",
-    "/limit": "Limit",
-    "/referans": "Referans",
-    "/puan": "Puan",
-    "/bildir": "Sorun bildir",
-    "/versiyon": "Versiyon",
-    "/iletisim": "İletişim",
-    "/sss": "SSS"
-}
+if not os.path.exists(LANG_FILE): with open(LANG_FILE, "w", encoding="utf-8") as f: json.dump(DEFAULT_LANGS, f, ensure_ascii=False, indent=2)
 
-ADMIN_COMMANDS = {
-    "/admin": "Admin panel",
-    "/broadcast": "Duyuru",
-    "/users": "Kullanıcılar",
-    "/ban": "Ban",
-    "/unban": "Unban",
-    "/stats": "Stats",
-    "/logs": "Loglar",
-    "/restart": "Restart",
-    "/addcmd": "Komut ekle",
-    "/delcmd": "Komut sil",
-    "/editcmd": "Komut düzenle"
-}
+def default_commands(): data = [] for i in range(1, 21): data.append({"name": f"/user{i}", "desc": f"User command {i}", "type": "user", "active": True}) for i in range(1, 26): data.append({"name": f"/admin{i}", "desc": f"Admin command {i}", "type": "admin", "active": True}) return data
 
-ALL_COMMANDS = {**USER_COMMANDS, **ADMIN_COMMANDS}
+if not os.path.exists(DATA_FILE): with open(DATA_FILE, "w", encoding="utf-8") as f: json.dump(default_commands(), f, ensure_ascii=False, indent=2)
 
-# ==================== KOMUT DOSYASI ====================
-def default_commands():
-    cmds = []
-    i = 1
-    for k, v in ALL_COMMANDS.items():
-        cmds.append({
-            "id": i,
-            "name": k,
-            "desc": v,
-            "active": True
-        })
-        i += 1
-    return cmds
+def load_cmds(): return json.load(open(DATA_FILE, encoding="utf-8"))
 
-if not os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(default_commands(), f, ensure_ascii=False, indent=2)
+def save_cmds(c): json.dump(c, open(DATA_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 
-# ==================== TELEGRAM BOT ====================
-@bot.message_handler(commands=["start"])
-def start(m):
-    bot.reply_to(
-        m,
-        f"⚡ <b>{BOT_NAME}</b> aktif!\n\n/help ile komutları gör"
-    )
+def notify_admins(msg): for a in ADMIN_IDS: try: bot.send_message(a, msg) except: pass
 
-@bot.message_handler(commands=["help"])
-def help_cmd(m):
-    text = "<b>📜 KOMUTLAR</b>\n\n"
-    for k, v in USER_COMMANDS.items():
-        text += f"{k} - {v}\n"
-    bot.reply_to(m, text)
+@bot.message_handler(commands=["start"]) def start_cmd(m): cmds = load_cmds() msg = "<b>LORD KOMUTLAR</b>\n\n" for c in cmds: if not c["active"]: continue if c["type"] == "admin" and m.from_user.id not in ADMIN_IDS: continue msg += f"{c['name']} - {c['desc']}\n" bot.send_message(m.chat.id, msg)
 
-# ==================== FLASK PANEL ====================
-app = Flask(__name__)
-app.secret_key = "lord-secret"
+@bot.message_handler(func=lambda m: True) def any_cmd(m): for c in load_cmds(): if c["active"] and m.text == c["name"]: if c["type"] == "admin" and m.from_user.id not in ADMIN_IDS: bot.reply_to(m, "Yetkin yok") return bot.reply_to(m, "Komut calisti") return
 
-PANEL_HTML = """
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>LORD PANEL</title>
+LOGIN_HTML = """ <!doctype html>
+
+<html><head><meta name=viewport content="width=device-width, initial-scale=1">
 <style>
-body{margin:0;font-family:Arial;background:#0f0f1a;color:white}
-header{padding:20px;text-align:center;font-size:28px;font-weight:bold;animation:glow 2s infinite}
-@keyframes glow{0%{color:#fff}50%{color:#00f7ff}100%{color:#fff}}
-.container{padding:20px}
-.card{background:#1a1a2e;border-radius:12px;padding:15px;margin:10px 0}
-</style>
-</head>
+body{background:#0f0f1a;color:white;font-family:sans-serif;text-align:center}
+input,button,select{padding:12px;border-radius:12px;border:none;width:80%;margin:10px}
+button{background:#00f7ff;animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 5px #00f7ff}50%{box-shadow:0 0 20px #00f7ff}100%{box-shadow:0 0 5px #00f7ff}}
+</style></head>
+<body><h2>LORD PANEL</h2>
+<form method=post>
+<input type=password name=password placeholder=Şifre>
+<button>Giriş</button>
+</form></body></html>
+"""PANEL_HTML = """ <!doctype html>
+
+<html><head><meta name=viewport content="width=device-width, initial-scale=1">
+<style>
+body{background:#0f0f1a;color:white;font-family:sans-serif}
+.card{background:#1a1a2e;margin:10px;padding:15px;border-radius:15px;animation:slide 0.6s}
+@keyframes slide{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
+button{padding:8px;border:none;border-radius:8px;background:#00f7ff}
+</style></head>
 <body>
-<header>⚡ LORD WEB PANEL ⚡</header>
-<div class="container">
-{% for c in commands %}
-<div class="card">
-<b>{{c.name}}</b> - {{c.desc}}
+<h2 style=text-align:center>LORD WEB PANEL</h2>
+{% for c in cmds %}
+<div class=card>
+<b>{{c.name}}</b> ({{c.type}})<br>{{c.desc}}<br>
+Durum: {{"Açık" if c.active else "Kapalı"}}
+<form method=post action=/toggle>
+<input type=hidden name=name value="{{c.name}}">
+<button>Durum</button>
+</form>
 </div>
 {% endfor %}
-</div>
-</body>
-</html>
-"""
-
-LOGIN_HTML = """
-<html>
-<body style="background:#0f0f1a;color:white;text-align:center;padding-top:100px">
-<h2>LORD PANEL GİRİŞ</h2>
-<form method="post">
-<input type="password" name="password" placeholder="Şifre">
-<br><br>
-<button>Giriş</button>
+<form method=post action=/add class=card>
+<input name=name placeholder=/yenikomut>
+<input name=desc placeholder=Açıklama>
+<select name=type><option value=user>User</option><option value=admin>Admin</option></select>
+<button>Ekle</button>
 </form>
-</body>
-</html>
-"""
+</body></html>
+"""@app.route('/', methods=['GET','POST']) def login(): if request.method == 'POST' and request.form.get('password') == ADMIN_PASSWORD: session['admin'] = True return redirect('/panel') return render_template_string(LOGIN_HTML)
 
-@app.route("/", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        if request.form.get("password") == ADMIN_PASSWORD:
-            session["admin"] = True
-            return redirect("/panel")
-    return render_template_string(LOGIN_HTML)
+@app.route('/panel') def panel(): if not session.get('admin'): return redirect('/') return render_template_string(PANEL_HTML, cmds=load_cmds())
 
-@app.route("/panel")
-def panel():
-    if not session.get("admin"):
-        return redirect("/")
-    with open(DATA_FILE, encoding="utf-8") as f:
-        commands = json.load(f)
-    return render_template_string(PANEL_HTML, commands=commands)
+@app.route('/add', methods=['POST']) def add(): if not session.get('admin'): return redirect('/') c = load_cmds() c.append({"name":request.form['name'],"desc":request.form['desc'],"type":request.form['type'],"active":True}) save_cmds(c) notify_admins("Yeni komut eklendi, /start yaz") return redirect('/panel')
 
-# ==================== ÇALIŞTIR ====================
-def run_bot():
-    bot.infinity_polling(skip_pending=True)
+@app.route('/toggle', methods=['POST']) def toggle(): if not session.get('admin'): return redirect('/') c = load_cmds() for x in c: if x['name'] == request.form['name']: x['active'] = not x['active'] save_cmds(c) notify_admins("Komut guncellendi, /start yaz") return redirect('/panel')
 
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+def run_bot(): bot.infinity_polling()
 
-if __name__ == "__main__":
-    threading.Thread(target=run_bot).start()
-    run_web()
+threading.Thread(target=run_bot).start() port = int(os.environ.get('PORT', 10000)) app.run(host='0.0.0.0', port=port)
