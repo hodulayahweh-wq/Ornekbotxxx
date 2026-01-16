@@ -1,10 +1,10 @@
-================= ULTRA UST SEVIYE LORD PANEL + BOT =================
+#================= ULTRA UST SEVIYE LORD PANEL + BOT =================
 
-Render Uyumlu | Web Admin Panel | Animasyon | Login | Yetki | Stabil
+#Render Uyumlu | Web Admin Panel | Animasyon | Login | Yetki | Stabil
 
 import os, time, threading, platform, psutil, socket, json from datetime import datetime from flask import Flask, request, render_template_string, session, redirect import telebot
 
-================= AYARLAR =================
+#================= AYARLAR =================
 
 TOKEN = "8474819821:AAFc2uafIfJGmks469JxlsbjVTIjF8YH6Wc" ADMIN_ID = 7461081198 ADMIN_KANAL_ID = -1001234567890 PANEL_SIFRE = "316363" PORT = int(os.environ.get("PORT", 10000))
 
@@ -20,17 +20,17 @@ Kamera hack botu AKTİF 👇 @sizacamsanahareketbot
 
 🧪📱 Sorgu botu AKTİF 👇 @BenbirsmsBot
 
-REKLAM BOT AKTİF 👇 @lordkanalduyurubot """
+REKLAM BOT AKTİF 👇 @lordkanalduyurubot"""
 
-================= BOT =================
+#================= BOT =================
 
 bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
 
-================= FLASK =================
+#================= FLASK =================
 
 app = Flask(name) app.secret_key = "lord_ultra_secret"
 
-================= HTML =================
+#================= HTML =================
 
 HTML = """
 
@@ -76,17 +76,17 @@ textarea{width:100%;height:140px;background:#020617;color:#e5e7eb;border:1px sol
 
 @app.route('/logout') def logout(): session.clear(); return redirect('/login')
 
-================= BOT =================
+#================= BOT =================
 
 @bot.message_handler(commands=['start']) def start(m): bot.send_message(m.chat.id, "🤖 LORD BOT AKTİF")
 
 @bot.message_handler(commands=['admin']) def admin(m): if m.from_user.id==ADMIN_ID: bot.send_message(m.chat.id, "👑 Admin yetkili. Web panelden yönet.")
 
-================= LOOP =================
+#================= LOOP =================
 
 def reklam_loop(): while True: if reklam_aktif: try: bot.send_message(ADMIN_KANAL_ID, REKLAM_METNI) except: pass time.sleep(reklam_sure)
 
-================= RUN =================
+#================= RUN =================
 
 def run_web(): app.run(host='0.0.0.0', port=PORT)
 
