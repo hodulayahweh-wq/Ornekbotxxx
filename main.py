@@ -2,7 +2,7 @@ import os import json import time import threading from flask import Flask, requ
 
 BOT_TOKEN = os.getenv("BOT_TOKEN") if not BOT_TOKEN: raise RuntimeError("BOT_TOKEN bulunamadi")
 
-ADMIN_PASSWORD = "316363" ADMIN_IDS = [123456789] DATA_FILE = "commands.json" LANG_FILE = "langs.json"
+ADMIN_PASSWORD = "316363" ADMIN_IDS = [7461081198] DATA_FILE = "commands.json" LANG_FILE = "langs.json"
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML") app = Flask(name) app.secret_key = "lord-secret"
 
