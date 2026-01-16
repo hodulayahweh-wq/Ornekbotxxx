@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Geçici Kullanıcı Veritabanı
-let lordUsers = [{ user: "admin", pass: "admin123" }];
+let lordUsers = [{ user: "lord2026panel", pass: "lord2026freepanel" }];
 
 app.use(bodyParser.json());
 
