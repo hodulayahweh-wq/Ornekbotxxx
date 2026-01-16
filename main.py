@@ -1,201 +1,243 @@
-# ================== IMPORTS ==================
-import os, json, threading, random, requests, datetime
-from flask import Flask, request, redirect, session, render_template_string
+import os, json, time, threading, secrets, datetime, requests
+from flask import Flask, request, session, redirect, render_template_string
 import telebot
 
-# ================== AYARLAR ==================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+# ================= AYAR =================
+BOT_TOKEN = os.getenv("BOT_TOKEN","")
+ADMIN_ID  = int(os.getenv("ADMIN_ID","0"))
+PORT      = int(os.getenv("PORT","5000"))
 
 ADMIN_PASSWORD = "2026xlord"
-USER_PASSWORD = "2026lordcheck"
+USER_PASSWORD  = "2026lordcheck"
 
-PORT = int(os.getenv("PORT", "5000"))
-DATA_CMDS = "commands.json"
-DATA_LOGS = "logs.json"
+API_FILE   = "apis.json"
+LOG_FILE   = "logs.json"
+TOKENS     = "tg_tokens.json"
+IPS        = "ips.json"
 
-# ================== DOSYA OLUŞTUR ==================
-def ensure_files():
-    if not os.path.exists(DATA_CMDS):
-        json.dump({}, open(DATA_CMDS,"w",encoding="utf-8"), ensure_ascii=False, indent=2)
-    if not os.path.exists(DATA_LOGS):
-        json.dump([], open(DATA_LOGS,"w",encoding="utf-8"), ensure_ascii=False, indent=2)
+# ================= DEFAULT API =================
+DEFAULT_APIS = {
+ "gsmtc": {"url":"https://zyrdaware.xyz/api/gsmtc?auth=t.me/zyrdaware&gsm=","on":1},
+ "adsoyad":{"url":"https://zyrdaware.xyz/api/adsoyad?auth=t.me/zyrdaware&ad={ad}&soyad={soyad}","on":1},
+ "tcgsm": {"url":"https://zyrdaware.xyz/api/tcgsm?auth=t.me/zyrdaware&tc=","on":1},
+ "recete":{"url":"https://nabisorguapis.onrender.com/api/v1/eczane/recete-gecmisi?tc=","on":1},
+ "istanbulkart":{"url":"https://nabisorguapis.onrender.com/api/v1/ulasim/istanbulkart-bakiye?tc=","on":1},
+ "vergi":{"url":"https://nabisorguapis.onrender.com/api/v1/vergi/borc-sorgu?tc=","on":1},
+ "su":{"url":"https://nabisorguapis.onrender.com/api/v1/ibb/su-fatura?tc=","on":1}
+}
 
-ensure_files()
+# ================= DOSYA =================
+def ensure(f,d):
+    if not os.path.exists(f):
+        json.dump(d,open(f,"w",encoding="utf-8"),ensure_ascii=False,indent=2)
 
-# ================== YARDIMCI ==================
-def load_cmds(): return json.load(open(DATA_CMDS,encoding="utf-8"))
-def save_cmds(d): json.dump(d, open(DATA_CMDS,"w",encoding="utf-8"), ensure_ascii=False, indent=2)
+ensure(API_FILE,DEFAULT_APIS)
+ensure(LOG_FILE,[])
+ensure(TOKENS,{})
+ensure(IPS,[])
 
-def load_logs(): return json.load(open(DATA_LOGS,encoding="utf-8"))
-def save_logs(l): json.dump(l, open(DATA_LOGS,"w",encoding="utf-8"), ensure_ascii=False, indent=2)
+def load(f): return json.load(open(f,encoding="utf-8"))
+def save(f,d): json.dump(d,open(f,"w",encoding="utf-8"),ensure_ascii=False,indent=2)
 
-def log_event(who, action, detail):
-    logs = load_logs()
-    entry = {
-        "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "who": who,
-        "action": action,
-        "detail": detail
-    }
-    logs.insert(0, entry)
-    save_logs(logs[:300])
-
+# ================= LOG =================
+def log_event(who,act,det):
+    logs = load(LOG_FILE)
+    t = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logs.insert(0,{"time":t,"who":who,"action":act,"detail":det})
+    save(LOG_FILE,logs[:500])
     if bot and ADMIN_ID:
-        bot.send_message(
-            ADMIN_ID,
-            f"📌 <b>{action}</b>\n👤 {who}\n🕒 {entry['time']}\n📝 {detail}"
-        )
+        bot.send_message(ADMIN_ID,f"📌 {act}\n👤 {who}\n🕒 {t}\n📝 {det}")
 
-# ================== API ==================
-def adapter_call(url, args):
+# ================= API CALL =================
+def call_api(url):
     try:
-        r = requests.get(url, params={"q": args[0]} if args else {}, timeout=10)
-        r.raise_for_status()
-        return r.json() if "json" in r.headers.get("content-type","") else {"raw": r.text}
+        r=requests.get(url,timeout=15)
+        if "json" in r.headers.get("content-type",""):
+            return r.json()
+        return {"raw":r.text}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error":str(e)}
 
-# ================== BOT ==================
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML") if BOT_TOKEN else None
+# ================= BOT =================
+bot = telebot.TeleBot(BOT_TOKEN,parse_mode="HTML") if BOT_TOKEN else None
 
 if bot:
-    @bot.message_handler(commands=["start"])
-    def start(m):
-        bot.reply_to(m, "👑 <b>LORD ULTRA AKTİF</b>")
+    @bot.message_handler(commands=["login"])
+    def tg_login(m):
+        token=secrets.token_hex(16)
+        t=load(TOKENS)
+        t[token]={"id":m.from_user.id,"time":time.time()}
+        save(TOKENS,t)
+        bot.reply_to(m,f"🔐 Web giriş linkin:\nhttps://YOUR-RENDER.onrender.com/tg/{token}")
 
-    @bot.message_handler(commands=["ekle"])
-    def add_cmd(m):
-        if m.from_user.id != ADMIN_ID:
-            return bot.reply_to(m,"Yetkin yok")
-        _, name, url = m.text.split(maxsplit=2)
-        d = load_cmds()
-        d[name] = {"url":url,"enabled":True,"desc":"Admin ekledi"}
-        save_cmds(d)
-        log_event("ADMIN","Komut Eklendi",f"/{name}")
-        bot.reply_to(m,f"✅ /{name} eklendi")
-
-    @bot.message_handler(func=lambda m:m.text.startswith("/"))
-    def dynamic(m):
-        cmd = m.text.split()[0][1:]
-        args = m.text.split()[1:]
-        d = load_cmds()
-        if cmd in d and d[cmd]["enabled"]:
-            res = adapter_call(d[cmd]["url"], args)
-            log_event(f"TG:{m.from_user.id}", "API Sorgu", f"/{cmd} {args}")
-            bot.reply_to(m,f"<pre>{json.dumps(res,indent=2,ensure_ascii=False)}</pre>")
-        else:
-            bot.reply_to(m,"❌ Komut yok / kapalı")
-
-# ================== WEB ==================
-app = Flask(__name__)
-app.secret_key = "lord-secret"
-
-# ---------- PREMIUM HTML ----------
-LOGIN_HTML = """
-<!doctype html><html><head>
-<meta name=viewport content="width=device-width,initial-scale=1">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-*{font-family:Inter}
-body{background:linear-gradient(135deg,#0f172a,#020617);color:#fff;
-display:flex;align-items:center;justify-content:center;height:100vh}
-.card{background:#020617;border-radius:20px;padding:28px;width:100%;max-width:380px;
-box-shadow:0 20px 50px rgba(0,0,0,.6)}
-input,button{width:100%;padding:14px;margin:8px 0;border-radius:14px;border:none}
-input{background:#020617;border:1px solid #1e293b;color:#fff}
-button{background:linear-gradient(135deg,#6366f1,#22d3ee);font-weight:700}
-</style></head><body>
-<div class=card>
-<h2>👑 LORD ULTRA</h2>
-<form method=post>
-<input name=user placeholder="user / admin" required>
-<input name=pass type=password placeholder="şifre" required>
-<p>{{a}} + {{b}}</p>
-<input name=captcha placeholder="sonuç" required>
-<button>Giriş</button>
-</form>
-</div></body></html>
-"""
-
-ADMIN_HTML = """
-<!doctype html><html><head>
-<meta name=viewport content="width=device-width,initial-scale=1">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-body{margin:0;background:#020617;color:#fff;font-family:Inter}
-header{padding:16px;background:linear-gradient(135deg,#6366f1,#22d3ee);color:#000;font-weight:800}
-.card{background:#020617;border:1px solid #1e293b;border-radius:16px;padding:14px;margin:12px}
-.time{font-size:11px;color:#94a3b8}
-</style></head><body>
-<header>👑 ADMIN PANEL</header>
-<a href="/logout" style="color:#f87171;margin:12px;display:block">Çıkış</a>
-{% for l in logs %}
-<div class=card>
-<b>{{l.action}}</b><br>{{l.who}}<br>{{l.detail}}
-<div class=time>{{l.time}}</div>
-</div>
-{% endfor %}
-</body></html>
-"""
+# ================= WEB =================
+app=Flask(__name__)
+app.secret_key="lord-ultra"
 
 USER_HTML = """
 <!doctype html><html><head>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-body{margin:0;background:#020617;color:#fff;font-family:Inter}
-header{padding:16px;background:linear-gradient(135deg,#22d3ee,#6366f1);color:#000;font-weight:800}
-.card{background:#020617;border:1px solid #1e293b;border-radius:16px;padding:14px;margin:12px}
-.time{font-size:11px;color:#94a3b8}
-</style></head><body>
-<header>👤 KULLANICI PANELİ</header>
-<a href="/logout" style="color:#f87171;margin:12px;display:block">Çıkış</a>
-{% for l in logs %}
-<div class=card>
-{{l.detail}}
-<div class=time>{{l.time}}</div>
+body{margin:0;font-family:Arial;background:#020617;color:#fff}
+.menu{position:fixed;left:0;top:0;width:260px;height:100%;
+background:#020617;border-right:1px solid #1e293b;transform:translateX(-100%);
+transition:.3s;padding:15px}
+.menu a{display:block;padding:10px;color:#fff;text-decoration:none}
+.menu a:hover{background:#1e293b}
+.open{transform:translateX(0)}
+.top{padding:10px;background:#020617;border-bottom:1px solid #1e293b}
+button{padding:10px;border-radius:10px;border:0}
+input,select{width:100%;padding:10px;margin:5px 0;border-radius:10px;border:0}
+pre{white-space:pre-wrap;font-size:12px}
+</style>
+<script>
+function toggle(){document.getElementById('menu').classList.toggle('open')}
+</script>
+</head>
+<body>
+
+<div class="top">
+<button onclick="toggle()">☰</button> LORD ULTRA
 </div>
+
+<div id="menu" class="menu">
+{% for k,v in apis.items() if v.on %}
+<a href="/user?api={{k}}">{{k}}</a>
 {% endfor %}
+<a href="/logout">Çıkış</a>
+</div>
+
+<div style="padding:15px">
+{% if api %}
+<form method=post action=/query>
+<input name=v1 placeholder="tc / gsm / ad">
+<input name=v2 placeholder="soyad (gerekirse)">
+<input type=hidden name=api value="{{api}}">
+<button>Sorgula</button>
+</form>
+{% endif %}
+
+{% if result %}
+<pre>{{result}}</pre>
+{% endif %}
+</div>
 </body></html>
 """
 
-# ---------- ROUTES ----------
-@app.route("/", methods=["GET","POST"])
-def login():
-    if "a" not in session:
-        session["a"], session["b"] = random.randint(1,9), random.randint(1,9)
-    if request.method=="POST":
-        if int(request.form["captcha"]) != session["a"]+session["b"]:
-            session.clear(); return redirect("/")
-        u,p = request.form["user"], request.form["pass"]
-        session.clear()
-        if u=="admin" and p==ADMIN_PASSWORD:
-            session["admin"]=1; log_event("ADMIN","Web Giriş",""); return redirect("/admin")
-        if u=="user" and p==USER_PASSWORD:
-            session["user"]=1; log_event("USER","Web Giriş",""); return redirect("/user")
-    return render_template_string(LOGIN_HTML,a=session["a"],b=session["b"])
+ADMIN_HTML = """
+<h2>🛡 ADMIN PANEL</h2>
 
-@app.route("/admin")
-def admin():
-    if not session.get("admin"): return redirect("/")
-    return render_template_string(ADMIN_HTML, logs=load_logs())
+<h3>➕ API EKLE</h3>
+<form method=post action=/admin/add>
+<input name=name placeholder=isim>
+<input name=url placeholder="api url">
+<button>Ekle</button>
+</form>
+
+<h3>📜 API LİSTESİ</h3>
+{% for k,v in apis.items() %}
+<p>
+<b>{{k}}</b> | {{v.url}} |
+<a href="/admin/toggle/{{k}}">Aç/Kapat</a> |
+<a href="/admin/del/{{k}}">Sil</a>
+</p>
+{% endfor %}
+
+<h3>📊 LOG</h3>
+{% for l in logs %}
+<p>[{{l.time}}] {{l.who}} - {{l.action}} - {{l.detail}}</p>
+{% endfor %}
+"""
+
+@app.route("/",methods=["GET","POST"])
+def login():
+    if request.method=="POST":
+        if request.form["pass"]==USER_PASSWORD:
+            session["user"]=1
+            ip=request.remote_addr
+            ips=load(IPS)
+            if ip not in ips: ips.append(ip); save(IPS,ips)
+            return redirect("/user")
+        if request.form["pass"]==ADMIN_PASSWORD:
+            session["admin"]=1
+            return redirect("/admin")
+    return '<form method=post><input type=password name=pass><button>Giriş</button></form>'
+
+@app.route("/tg/<t>")
+def tg(t):
+    data=load(TOKENS)
+    if t in data:
+        session["user"]=1
+        ip=request.remote_addr
+        ips=load(IPS)
+        if ip not in ips: ips.append(ip); save(IPS,ips)
+        del data[t]; save(TOKENS,data)
+        log_event("TG","Telegram Login",ip)
+        return redirect("/user")
+    return "Geçersiz"
 
 @app.route("/user")
 def user():
     if not session.get("user"): return redirect("/")
-    return render_template_string(
-        USER_HTML,
-        logs=[l for l in load_logs() if l["who"]!="ADMIN"]
-    )
+    api=request.args.get("api")
+    return render_template_string(USER_HTML,apis=load(API_FILE),api=api)
+
+@app.route("/query",methods=["POST"])
+def query():
+    if not session.get("user"): return redirect("/")
+    api=request.form["api"]
+    apis=load(API_FILE)
+    base=apis[api]["url"]
+    v1=request.form.get("v1","")
+    v2=request.form.get("v2","")
+    if "{ad}" in base:
+        url=base.format(ad=v1,soyad=v2)
+    else:
+        url=base+v1
+    res=call_api(url)
+    log_event("WEB","Sorgu",api)
+    return render_template_string(USER_HTML,apis=apis,api=api,
+        result=json.dumps(res,indent=2,ensure_ascii=False))
+
+@app.route("/admin")
+def admin():
+    if not session.get("admin"): return redirect("/")
+    return render_template_string(ADMIN_HTML,apis=load(API_FILE),logs=load(LOG_FILE))
+
+@app.route("/admin/add",methods=["POST"])
+def add_api():
+    if not session.get("admin"): return redirect("/")
+    apis=load(API_FILE)
+    apis[request.form["name"]]={"url":request.form["url"],"on":1}
+    save(API_FILE,apis)
+    log_event("ADMIN","API EKLE",request.form["name"])
+    return redirect("/admin")
+
+@app.route("/admin/del/<k>")
+def del_api(k):
+    if not session.get("admin"): return redirect("/")
+    apis=load(API_FILE)
+    if k in apis: del apis[k]
+    save(API_FILE,apis)
+    log_event("ADMIN","API SİL",k)
+    return redirect("/admin")
+
+@app.route("/admin/toggle/<k>")
+def tog(k):
+    if not session.get("admin"): return redirect("/")
+    apis=load(API_FILE)
+    apis[k]["on"]=0 if apis[k]["on"] else 1
+    save(API_FILE,apis)
+    log_event("ADMIN","API DURUM",k)
+    return redirect("/admin")
 
 @app.route("/logout")
 def logout():
-    session.clear()
-    return redirect("/")
+    session.clear(); return redirect("/")
 
-# ================== RUN ==================
+# ================= RUN =================
 if __name__=="__main__":
     if bot:
-        threading.Thread(target=lambda:bot.infinity_polling(skip_pending=True),daemon=True).start()
-    app.run(host="0.0.0.0", port=PORT)
+        threading.Thread(target=lambda:bot.infinity_polling(skip_pending=True),
+                         daemon=True).start()
+    app.run("0.0.0.0",PORT)
