@@ -12,7 +12,7 @@ import telebot from flask import Flask, request, redirect, url_for, render_templ
 
 #==================== AYARLAR ====================
 
-TOKEN = os.getenv("8474819821:AAFc2uafIfJGmks469JxlsbjVTIjF8YH6Wc", "8474819821:AAFc2uafIfJGmks469JxlsbjVTIjF8YH6Wc") ADMIN_IDS = {7461081198} ADMIN_CHANNEL_ID = -1001234567890 WEB_PANEL_PASSWORD = "316363" BASE_URL = "https://ornekbotxxxx.onrender.com"
+TOKEN = os.getenv("BOT_TOKEN bulunamadı", "BOT_TOKEN") ADMIN_IDS = {7461081198} ADMIN_CHANNEL_ID = -1001234567890 WEB_PANEL_PASSWORD = "316363" BASE_URL = "https://ornekbotxxxx.onrender.com"
 
 REKLAM_SURESI = 4 * 24 * 60 * 60  # 4 gün
 
