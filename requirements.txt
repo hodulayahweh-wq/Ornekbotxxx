@@ -1,3 +1,1 @@
-pyTelegramBotAPI==4.16.1
-Flask==3.0.2
-psutil==5.9.8
+
