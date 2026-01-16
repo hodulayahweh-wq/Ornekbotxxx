@@ -1,7 +1,7 @@
 {
-  "name": "lord-ultimate-panel",
-  "version": "3.0.0",
-  "description": "Lord PRO Ultimate Unified Checker - PRO & OLD Edition",
+  "name": "lord-mobile-pro",
+  "version": "4.0.0",
+  "description": "Lord PRO Mobile Unified Edition - High Performance",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
