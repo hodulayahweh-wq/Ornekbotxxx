@@ -7,9 +7,11 @@ import json
 
 app = Flask(__name__)
 
-PANEL_PASSWORD = os.environ.get("PANEL_PASSWORD", "2026lordfreepanel")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "atar6367lord")
-PORT = int(os.environ.get("PORT", 5000))
+# SABİT ŞİFRELER (DEĞİŞMEZ)
+PANEL_PASSWORD = "lord2025freepanel"
+ADMIN_PASSWORD = "lordatar6367"
+
+PORT = 5000
 DATA_FILE = "apis.json"
 
 DEFAULT_APIS = {
@@ -44,16 +46,11 @@ def call_api(url):
     r = requests.get(url, timeout=20)
     try:
         j = r.json()
-    except:
+    except Exception:
         return {"raw": r.text}
-
-    for k in ["apiDiscordSunucusu", "apiSahibi", "apiTelegramGrubu"]:
-        if isinstance(j, dict):
-            j.pop(k, None)
 
     if isinstance(j, dict) and "veri" in j:
         return j["veri"]
-
     return j
 
 @app.route("/login", methods=["POST"])
@@ -70,29 +67,28 @@ def admin_login():
 
 @app.route("/api/<name>", methods=["POST"])
 def api_proxy(name):
-    data = load_apis()
-    if name not in data:
-        return {"error": "Geçersiz sorgu"}, 404
+    apis = load_apis()
+    if name not in apis:
+        return {"error": "Geçersiz API"}, 404
 
     body = request.json or {}
-    url = data[name].format(
+    url = apis[name].format(
         v=body.get("value", ""),
         a=body.get("ad", ""),
         s=body.get("soyad", ""),
         q=body.get("q", "")
     )
-
     return jsonify(call_api(url))
 
 @app.route("/admin/apis")
-def admin_list():
+def admin_apis():
     return load_apis()
 
 @app.route("/admin/add", methods=["POST"])
 def admin_add():
     body = request.json or {}
-    name = body.get("name", "").lower()
-    url = body.get("url", "")
+    name = body.get("name", "").lower().strip()
+    url = body.get("url", "").strip()
 
     if not name or not url:
         return {"error": "Eksik"}, 400
@@ -102,7 +98,7 @@ def admin_add():
     save_apis(data)
     return {"ok": True}
 
-@app.route("/", methods=["GET"])
+@app.route("/")
 def index():
     apis = load_apis()
     return render_template_string("""
@@ -114,78 +110,50 @@ def index():
 <title>LORD SYSTEM 2026</title>
 <style>
 body{background:#050814;color:#fff;font-family:sans-serif;margin:0}
-.box{max-width:420px;margin:30px auto;background:#0b1230;padding:20px;border-radius:16px}
+.box{max-width:420px;margin:24px auto;background:#0b1230;padding:18px;border-radius:16px}
 input,button{width:100%;padding:14px;margin-top:10px;border-radius:12px;border:0}
 button{background:#1D9BF0;color:white;font-weight:700}
-pre{white-space:pre-wrap;word-break:break-word}
+pre{white-space:pre-wrap}
 </style>
 </head>
 <body>
 
 <div class="box" id="login">
 <h3>Kullanıcı Giriş</h3>
-<input id="pass" type="password" placeholder="Panel Şifresi">
+<input id="pass" type="password">
 <button onclick="login()">Giriş</button>
 </div>
 
 <div class="box" id="app" style="display:none">
 <h3>Sorgular</h3>
 {% for k in apis %}
-<button onclick="openQ('{{k}}')">{{k}}</button>
+<button onclick="run('{{k}}')">{{k}}</button>
 {% endfor %}
-<hr>
-<button onclick="openAdmin()">Admin</button>
 <pre id="out"></pre>
-</div>
-
-<div class="box" id="admin" style="display:none">
-<h3>Admin Panel</h3>
-<input id="apass" type="password" placeholder="Admin Şifre">
-<button onclick="adminLogin()">Giriş</button>
-<div id="adminArea" style="display:none">
-<input id="aname" placeholder="Sorgu adı">
-<input id="aurl" placeholder="API URL">
-<button onclick="addApi()">Ekle</button>
-<pre id="alist"></pre>
-</div>
 </div>
 
 <script>
 function login(){
-fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},
-body:JSON.stringify({password:pass.value})})
-.then(r=>{if(!r.ok)throw 0;login.style.display='none';app.style.display='block'})
-.catch(()=>alert('Şifre yanlış'));
+fetch('/login',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({password:pass.value})
+}).then(r=>{
+if(!r.ok) throw 0;
+login.style.display='none';
+app.style.display='block';
+}).catch(()=>alert('Şifre yanlış'));
 }
 
-function openQ(q){
-let v=prompt("Değer");
-fetch('/api/'+q,{method:'POST',headers:{'Content-Type':'application/json'},
-body:JSON.stringify({value:v})})
-.then(r=>r.json()).then(j=>out.textContent=JSON.stringify(j,null,2));
-}
-
-function openAdmin(){
-app.style.display='none';
-admin.style.display='block';
-}
-
-function adminLogin(){
-fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},
-body:JSON.stringify({password:apass.value})})
-.then(r=>{if(!r.ok)throw 0;adminArea.style.display='block';loadList()})
-.catch(()=>alert('Admin şifre yanlış'));
-}
-
-function addApi(){
-fetch('/admin/add',{method:'POST',headers:{'Content-Type':'application/json'},
-body:JSON.stringify({name:aname.value,url:aurl.value})})
-.then(()=>loadList());
-}
-
-function loadList(){
-fetch('/admin/apis').then(r=>r.json())
-.then(j=>alist.textContent=JSON.stringify(j,null,2));
+function run(q){
+let v=prompt('Değer');
+fetch('/api/'+q,{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({value:v})
+}).then(r=>r.json()).then(j=>{
+out.textContent=JSON.stringify(j,null,2);
+});
 }
 </script>
 
