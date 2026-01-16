@@ -1,7 +1,7 @@
 {
-  "name": "lord-pro-ultimate-v5",
-  "version": "5.0.0",
-  "description": "Lord PRO Mobile Unified Edition - Force Mode & Music Fixed",
+  "name": "lord-v6-clean",
+  "version": "6.0.0",
+  "description": "Lord Clean Panel - Ad-Free & Music Fixed",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
