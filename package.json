@@ -1,7 +1,7 @@
 {
-  "name": "lord-system-v3",
-  "version": "1.0.0",
-  "description": "Lord Hacker Simulation Panel & Multi-Checker",
+  "name": "lord-ultimate-panel",
+  "version": "3.0.0",
+  "description": "Lord PRO Ultimate Unified Checker - PRO & OLD Edition",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -12,7 +12,7 @@
     "node-fetch": "^2.6.7"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0"
   },
   "author": "Lord",
   "license": "ISC"
