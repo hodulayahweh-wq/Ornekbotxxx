@@ -1,93 +1,114 @@
-#================= ULTRA UST SEVIYE LORD PANEL + BOT =================
+#==================== LORD FULL BOT + WEB PANEL ====================
 
-#Render Uyumlu | Web Admin Panel | Animasyon | Login | Yetki | Stabil
+Telegram Bot + Animasyonlu Çok Dilli Web Admin Panel (Render uyumlu)
 
-import os, time, threading, platform, psutil, socket, json from datetime import datetime from flask import Flask, request, render_template_string, session, redirect import telebot
+Dil Seçimi: TR, EN, DE, FR, ES, AR (kolayca genişletilebilir)
 
-#================= AYARLAR =================
+#================================================================
 
-TOKEN = "8474819821:AAFc2uafIfJGmks469JxlsbjVTIjF8YH6Wc" ADMIN_ID = 7461081198 ADMIN_KANAL_ID = -1001234567890 PANEL_SIFRE = "316363" PORT = int(os.environ.get("PORT", 10000))
+import os import time import threading from datetime import datetime
 
-START_TIME = time.time() reklam_aktif = True reklam_sure = 606024*4
+import telebot from flask import Flask, request, redirect, url_for, render_template_string, session
 
-REKLAM_METNI = """LORD SİSTEME AİT BOTLAR @LordDestekHat
+#==================== AYARLAR ====================
+
+TOKEN = os.getenv("8474819821:AAFc2uafIfJGmks469JxlsbjVTIjF8YH6Wc", "8474819821:AAFc2uafIfJGmks469JxlsbjVTIjF8YH6Wc") ADMIN_IDS = {7461081198} ADMIN_CHANNEL_ID = -1001234567890 WEB_PANEL_PASSWORD = "316363" BASE_URL = "https://ornekbotxxxx.onrender.com"
+
+REKLAM_SURESI = 4 * 24 * 60 * 60  # 4 gün
+
+REKLAM_METNI = """ 📢 LORD SİSTEME AİT BOTLAR
+
+@LordDestekHat
+
+LORDA AİT BOTLAR
 
 İP SORGU AKTİF 👇 @revoipsorgubot
 
 SMS BOMBER BOT 👇 @smsbombexr2026bot
 
-Kamera hack botu AKTİF 👇 @sizacamsanahareketbot
+Kamera botu AKTİF 👇 @sizacamsanahareketbot
 
 🧪📱 Sorgu botu AKTİF 👇 @BenbirsmsBot
 
-REKLAM BOT AKTİF 👇 @lordkanalduyurubot"""
+REKLAM BOT AKTİF 👇 @lordkanalduyurubot """
 
-#================= BOT =================
+#==================== DİLLER ====================
 
-bot = telebot.TeleBot(TOKEN, parse_mode="Markdown")
+LANGS = { "tr": { "title": "LORD Admin Panel", "login": "Giriş", "password": "Şifre", "logout": "Çıkış", "welcome": "Hoş geldiniz", "stats": "İstatistikler", "uptime": "Çalışma Süresi", "users": "Kullanıcı Sayısı", "admins": "Adminler", "language": "Dil Seçimi" }, "en": { "title": "LORD Admin Panel", "login": "Login", "password": "Password", "logout": "Logout", "welcome": "Welcome", "stats": "Statistics", "uptime": "Uptime", "users": "Users", "admins": "Admins", "language": "Language" }, "de": {"title": "LORD Admin", "login": "Anmelden", "password": "Passwort", "logout": "Abmelden", "welcome": "Willkommen", "stats": "Statistiken", "uptime": "Laufzeit", "users": "Benutzer", "admins": "Admins", "language": "Sprache"}, "fr": {"title": "LORD Admin", "login": "Connexion", "password": "Mot de passe", "logout": "Déconnexion", "welcome": "Bienvenue", "stats": "Statistiques", "uptime": "Temps de fonctionnement", "users": "Utilisateurs", "admins": "Admins", "language": "Langue"}, "es": {"title": "LORD Admin", "login": "Iniciar", "password": "Contraseña", "logout": "Salir", "welcome": "Bienvenido", "stats": "Estadísticas", "uptime": "Tiempo activo", "users": "Usuarios", "admins": "Admins", "language": "Idioma"}, "ar": {"title": "لوحة LORD", "login": "تسجيل", "password": "كلمة المرور", "logout": "خروج", "welcome": "مرحبا", "stats": "إحصائيات", "uptime": "مدة التشغيل", "users": "المستخدمون", "admins": "المدراء", "language": "اللغة"} }
 
-#================= FLASK =================
+#==================== BOT ====================
 
-app = Flask(name) app.secret_key = "lord_ultra_secret"
+bot = telebot.TeleBot(TOKEN, parse_mode="HTML") START_TIME = time.time() USERS = set()
 
-#================= HTML =================
+@bot.message_handler(commands=['start']) def start_cmd(m): USERS.add(m.from_user.id) bot.reply_to(m, "🤖 <b>LORD Bot Aktif</b> Komutlar: /help")
 
-HTML = """
+@bot.message_handler(commands=['help']) def help_cmd(m): bot.reply_to(m, "/start /help")
 
-<!DOCTYPE html><html><head><title>LORD ULTRA PANEL</title><style>
-body{margin:0;background:#020617;color:#e5e7eb;font-family:Arial}
-.sidebar{width:220px;position:fixed;height:100%;background:#020617;border-right:1px solid #22d3ee}
-.sidebar h2{color:#22d3ee;text-align:center}
-.sidebar a{display:block;padding:10px;color:#e5e7eb;text-decoration:none}
-.sidebar a:hover{background:#22d3ee;color:#020617}
-.main{margin-left:220px;padding:20px;animation:fade 1s}
-.card{background:#020617;padding:15px;border-radius:14px;margin-bottom:15px;box-shadow:0 0 25px rgba(34,211,238,.3)}
-button{padding:10px;border:none;border-radius:10px;background:#22d3ee;color:#020617;font-weight:bold;cursor:pointer}
-textarea{width:100%;height:140px;background:#020617;color:#e5e7eb;border:1px solid #22d3ee;border-radius:10px}
-@keyframes fade{from{opacity:0}to{opacity:1}}
-</style></head><body><div class='sidebar'>
-<h2>👑 LORD</h2>
-<a href='/'>📊 Dashboard</a>
-<a href='/reklam'>📢 Reklam</a>
-<a href='/system'>⚙️ Sistem</a>
-<a href='/logout'>🚪 Çıkış</a>
+@bot.message_handler(commands=['admin']) def admin_cmd(m): if m.from_user.id in ADMIN_IDS: bot.reply_to(m, "Admin panel: " + BASE_URL) else: bot.reply_to(m, "Yetkin yok")
+
+#==================== REKLAM ====================
+
+def reklam_loop(): last = 0 while True: if time.time() - last > REKLAM_SURESI: try: bot.send_message(ADMIN_CHANNEL_ID, REKLAM_METNI) last = time.time() except: pass time.sleep(60)
+
+#==================== WEB PANEL ====================
+
+app = Flask(name) app.secret_key = "lord-secret"
+
+PANEL_HTML = """ <!doctype html>
+
+<html lang=\"en\">
+<head>
+<meta charset=\"utf-8\">
+<title>{{t['title']}}</title>
+<style>
+body{font-family:Arial;background:linear-gradient(120deg,#0f2027,#203a43,#2c5364);color:#fff;animation:bg 10s infinite alternate}
+@keyframes bg{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(360deg)}}
+.card{background:rgba(0,0,0,.5);padding:20px;border-radius:12px;max-width:420px;margin:60px auto;box-shadow:0 0 20px #000}
+select,input,button{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:0}
+button{background:#00c6ff;color:#000;font-weight:bold;cursor:pointer}
+.stat{margin:8px 0}
+</style>
+</head>
+<body>
+<div class=card>
+<form method=post>
+<label>{{t['language']}}</label>
+<select name=lang onchange="this.form.submit()">
+{% for k in langs %}<option value="{{k}}" {% if k==lang %}selected{% endif %}>{{k}}</option>{% endfor %}
+</select>
+</form>
+{% if not logged %}
+<h3>{{t['login']}}</h3>
+<form method=post>
+<input type=password name=password placeholder="{{t['password']}}">
+<button>{{t['login']}}</button>
+</form>
+{% else %}
+<h3>{{t['welcome']}}</h3>
+<div class=stat>{{t['users']}}: {{users}}</div>
+<div class=stat>{{t['admins']}}: {{admins}}</div>
+<div class=stat>{{t['uptime']}}: {{uptime}}</div>
+<a href=/logout><button>{{t['logout']}}</button></a>
+{% endif %}
 </div>
-<div class='main'>{{content}}</div>
-</body></html>
-"""LOGIN = """
+</body>
+</html>
+"""@app.route('/', methods=['GET','POST']) def panel(): lang = request.form.get('lang') or session.get('lang') or 'tr' session['lang'] = lang t = LANGS.get(lang, LANGS['tr'])
 
-<form method='post' style='display:flex;justify-content:center;align-items:center;height:100vh'>
-<div class='card'>
-<h2>🔐 PANEL GİRİŞ</h2>
-<input type='password' name='password' placeholder='Şifre' style='padding:10px'><br><br>
-<button>Giriş</button>
-</div></form>
-"""================= ROUTES =================
+if 'password' in request.form:
+    if request.form['password'] == WEB_PANEL_PASSWORD:
+        session['logged'] = True
 
-@app.route('/', methods=['GET','POST']) def dashboard(): if not session.get('auth'): return redirect('/login') up = int(time.time()-START_TIME) content = f""" <div class='card'>⏱ Uptime: {up//60} dk</div> <div class='card'>🧠 CPU: {psutil.cpu_percent()}%</div> <div class='card'>💾 RAM: {psutil.virtual_memory().percent}%</div> <div class='card'>🖥 OS: {platform.system()}</div> <div class='card'>🐍 Python: {platform.python_version()}</div> <div class='card'>📢 Reklam Durumu: {'AKTİF' if reklam_aktif else 'KAPALI'}</div> """ return render_template_string(HTML, content=content)
+logged = session.get('logged', False)
+uptime = int(time.time() - START_TIME)
+return render_template_string(PANEL_HTML,
+    t=t, langs=LANGS.keys(), lang=lang, logged=logged,
+    users=len(USERS), admins=len(ADMIN_IDS), uptime=uptime)
 
-@app.route('/reklam', methods=['GET','POST']) def reklam(): global REKLAM_METNI, reklam_aktif if not session.get('auth'): return redirect('/login') if request.method=='POST': if 'save' in request.form: REKLAM_METNI=request.form['msg'] if 'send' in request.form: try: bot.send_message(ADMIN_KANAL_ID, REKLAM_METNI) except: pass if 'on' in request.form: reklam_aktif=True if 'off' in request.form: reklam_aktif=False content = f""" <div class='card'> <form method='post'> <textarea name='msg'>{REKLAM_METNI}</textarea><br><br> <button name='save'>💾 Kaydet</button> <button name='send'>📢 Hemen At</button> <button name='on'>▶️ Aç</button> <button name='off'>⏸️ Kapat</button> </form></div> """ return render_template_string(HTML, content=content)
+@app.route('/logout') def logout(): session.clear() return redirect('/')
 
-@app.route('/system') def system(): if not session.get('auth'): return redirect('/login') content=f""" <div class='card'>IP: {socket.gethostbyname(socket.gethostname())}</div> <div class='card'>Saat: {datetime.now()}</div> <div class='card'><a href='/restart'>🔄 Bot Restart</a></div> """ return render_template_string(HTML, content=content)
+#==================== ÇALIŞTIR ====================
 
-@app.route('/restart') def restart(): os._exit(0)
+def run(): threading.Thread(target=reklam_loop, daemon=True).start() threading.Thread(target=lambda: bot.infinity_polling(skip_pending=True), daemon=True).start() app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
 
-@app.route('/login', methods=['GET','POST']) def login(): if request.method=='POST' and request.form.get('password')==PANEL_SIFRE: session['auth']=True; return redirect('/') return LOGIN
-
-@app.route('/logout') def logout(): session.clear(); return redirect('/login')
-
-#================= BOT =================
-
-@bot.message_handler(commands=['start']) def start(m): bot.send_message(m.chat.id, "🤖 LORD BOT AKTİF")
-
-@bot.message_handler(commands=['admin']) def admin(m): if m.from_user.id==ADMIN_ID: bot.send_message(m.chat.id, "👑 Admin yetkili. Web panelden yönet.")
-
-#================= LOOP =================
-
-def reklam_loop(): while True: if reklam_aktif: try: bot.send_message(ADMIN_KANAL_ID, REKLAM_METNI) except: pass time.sleep(reklam_sure)
-
-#================= RUN =================
-
-def run_web(): app.run(host='0.0.0.0', port=PORT)
-
-if name=='main': threading.Thread(target=run_web).start() threading.Thread(target=reklam_loop, daemon=True).start() bot.infinity_polling(skip_pending=True)
+if name == 'main': run()
