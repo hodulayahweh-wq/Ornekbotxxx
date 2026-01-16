@@ -1,8 +1,8 @@
 #==================== LORD FULL BOT + WEB PANEL ====================
 
-Telegram Bot + Animasyonlu Çok Dilli Web Admin Panel (Render uyumlu)
+#Telegram Bot + Animasyonlu Çok Dilli Web Admin Panel (Render uyumlu)
 
-Dil Seçimi: TR, EN, DE, FR, ES, AR (kolayca genişletilebilir)
+#Dil Seçimi: TR, EN, DE, FR, ES, AR (kolayca genişletilebilir)
 
 #================================================================
 
@@ -12,7 +12,7 @@ import telebot from flask import Flask, request, redirect, url_for, render_templ
 
 #==================== AYARLAR ====================
 
-TOKEN = os.getenv("BOT_TOKEN bulunamadı", "BOT_TOKEN") ADMIN_IDS = {7461081198} ADMIN_CHANNEL_ID = -1001234567890 WEB_PANEL_PASSWORD = "316363" BASE_URL = "https://ornekbotxxxx.onrender.com"
+TOKEN = os.getenv("BOT_TOKEN", "BOT_TOKEN bulunamadı") ADMIN_IDS = {7461081198} ADMIN_CHANNEL_ID = -1001234567890 WEB_PANEL_PASSWORD = "316363" BASE_URL = "https://ornekbotxxxx.onrender.com"
 
 REKLAM_SURESI = 4 * 24 * 60 * 60  # 4 gün
 
@@ -40,7 +40,7 @@ LANGS = { "tr": { "title": "LORD Admin Panel", "login": "Giriş", "password": "�
 
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML") START_TIME = time.time() USERS = set()
 
-@bot.message_handler(commands=['start']) def start_cmd(m): USERS.add(m.from_user.id) bot.reply_to(m, "🤖 <b>LORD Bot Aktif</b> Komutlar: /help")
+@bot.message_handler(commands=['start']) def start_cmd(m): USERS.add(m.from_user.id) bot.reply_to(m, "🤖 <b>LORD REKLAM Bot Aktif</b> Komutlar: /help")
 
 @bot.message_handler(commands=['help']) def help_cmd(m): bot.reply_to(m, "/start /help")
 
